@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+
+        #online-users {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-right: 15px;
+        }
+
+        #online-users li {
+            margin-bottom: 0.5rem;
+        }
+
+        #chat-window {
+            height: 80vh;
+            overflow-y: scroll;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #ffffff;
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        #chat-window p {
+            margin-bottom: 1rem;
+        }
+
+        #message-input, #media-input {
+            border-radius: 0;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+            border-radius: 0;
+        }
+
+        .btn-secondary {
+            border-radius: 0;
+        }
+
+        .custom-file-label {
+            border-radius: 0;
+        }
+
+        .input-group {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .card {
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+        }
+
+        .card-header {
+            background-color: #007bff;
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        .video {
+            max-width: 100%;
+            max-height: 300px;
+        }
+
+        .image {
+            max-width: 100%;
+            max-height: 300px;
+        }
+        #online-users {
+        max-height: 200px;
+        overflow-y: auto;
+      }
+
+      #online-users li {
+        margin-bottom: 0.5rem;
+      }
+        /* new styles */
+        .container-fluid {
+            height: 100vh;
+            display: flex;
+            flex-direction: row;
+        }
+
+        .col-left {
+            flex: 0 0 auto;
+            width: 300px;
+            background-color: #ffffff;
+            padding: 10px;
+            border-right: 1px solid #ccc;
+        }
+
+        .col-right {
+            flex: 1 1 auto;
+            height: 100%;
+            padding: 10px
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="col-left">
+            <h3>Online Users</h3>
+            <ul id="online-users">
+                {% for user in online_users %}
+                <li>{{ user }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        <div class="col-right">
+            <div class="card mt-3">
+                <div class="card-header text-center">Chat App</div>
+                <div class="card-body">
+                    <div id="chat-window">
+                        {% for message in messages %}
+                        <p><strong>{{ message.username }}:</strong> {{ message.message }}</p>
+                        {% endfor %}
+                    </div>
+                    <form id="message-form">
+                        <div class="input-group">
+                            <input type="text" id="message-input" class="form-control" placeholder="Type your message...">
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" type="submit">Send</button>
+                            </div>
+                        </div>
+                        <div class="input-group mt-2">
+                            <div class="custom-file">
+                                <input type="file" class="custom-file-input" id="media-input" accept="image/*,video/*">
+                                <label class="custom-file-label" for="media-input">Choose file</label>
+                            </div>
+                            <div class="input-group-append">
+                                <button class="btn btn-primary" id="send-media" type="button">Send Media</button>
+                            </div>
+                        </div>
+                    </form>
+                    <a href="{{ url_for('logout') }}" class="btn btn-secondary mt-3">Logout</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const socket = io.connect('https://' + document.domain + ':' + location.port);
+        socket.on('connect', () => {
+            console.log('Connected to the server');
+        });
+
+        socket.on('join', data => {
+            $('#chat-window').append('<p><em>' + data.username + ' joined the chat</em></p>');
+            $('#online-users').append('<li>' + data.username + '</li>');
+        });
+
+        socket.on('leave', data => {
+            $('#chat-window').append('<p><em>' + data.username + ' left the chat</em></p>');
+            $('#online-users li:contains("' + data.username + '")').remove();
+        });
+
+        socket.on('message', data => {
+            $('#chat-window').append('<p><strong>' + data.username + ':</strong> ' + data.message + '</p>');
+        });
+
+        $('#message-form').on('submit', e => {
+            e.preventDefault();
+            const message = $('#message-input').val();
+            if (message.trim()) {
+                socket.emit('message', { message });
+                $('#message-input').val('');
+            }
+        });
+
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(e);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        $("#send-media").on("click", async () => {
+            const mediaInput = $("#media-input")[0];
+            if (mediaInput.files.length > 0) {
+                const file = mediaInput.files[0];
+                const mediaType = file.type.startsWith("image/") ? "image" : "video";
+                const fileData = await readFile(file);
+                socket.emit("media", { type: mediaType, data: fileData });
+        }
+    });
+
+    socket.on("media", (data) => {
+        const mediaElement = data.type === "image" ? $("<img>").attr("src", data.data).addClass("image") : $("<video>").attr("src", data.data).attr("controls", true).addClass("video");
+        $("#chat-window").append($("<p>").append($("<strong>").text(data.username + ":")).append(mediaElement));
+    });
+
+</script>
+</body>
+</html>
+               

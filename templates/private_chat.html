@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Private Chat with {{ recipient.username }}</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.min.js"></script>
+    <style>
+        /* Add your CSS styles here */
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row">
+            <div class="col-md-8 offset-md-2">
+                <div class="card mt-3">
+                    <div class="card-header text-center">Private Chat with {{ recipient.username }}</div>
+                    <div class="card-body">
+                        <div id="private-chat-window">
+                            {% for message in messages %}
+                            <p><strong>{{ message.sender.username if message.sender_id == current_user.id else recipient.username }}:</strong> {{ message.message }}</p>
+                            <p>{{message.timestamp}}</p>
+                            {% endfor %}
+                        </div>
+                        <form id="private-message-form">
+                            <div class="input-group">
+                                <input type="text" id="private-message-input" class="form-control" placeholder="Type your message...">
+                                <div class="input-group-append">
+                                    <button class="btn btn-primary" type="submit">Send</button>
+                                </div>
+                            </div>
+                        </form>
+                        <a href="{{ url_for('index') }}" class="btn btn-secondary mt-3">Back to Group Chat</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const socket = io.connect('https://' + document.domain + ':' + location.port);
+        socket.on('connect', () => {
+            socket.emit('join_private_chat');
+        });
+
+        socket.on('private_message', data => {
+            if (data.sender_id == {{ current_user.id }}) {
+                $('#private-chat-window').append('<p><strong>You:</strong> ' + data.message + '</p>');
+            } else {
+                $('#private-chat-window').append('<p><strong>{{ recipient.username }}:</strong> ' + data.message + '</p>');
+            }
+        });
+
+        $('#private-message-form').on('submit', e => {
+            e.preventDefault();
+            const message = $('#private-message-input').val();
+            if (message.trim()) {
+                socket.emit('private_message', { recipient_id: {{ recipient.id }}, message });
+                $('#private-message-input').val('');
+            }
+        });
+
+        window.onbeforeunload = function () {
+            socket.emit('leave_private_chat');
+        };
+    </script>
+</body>
+</html>
+
+
+
+'timestamp' =timestamp
